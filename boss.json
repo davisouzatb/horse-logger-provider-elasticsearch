@@ -1,7 +1,7 @@
 {
 	"name": "horse-logger-provider-elasticsearch",
 	"description": "Save log to ElasticSearch",
-	"version": "1.0.0",
+	"version": "0.0.0",
 	"homepage": "https://github.com/davisouzatb/horse-logger-provider-elasticsearch",
 	"mainsrc": "./src/",
 	"projects": [],
