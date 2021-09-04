@@ -3,7 +3,7 @@ Provider for horse-logger
 
 ### For install in your project using [boss](https://github.com/HashLoad/boss):
 ``` sh
-$ boss install horse-logger-provider-elasticsearch
+$ boss install https://github.com/davisouzatb/horse-logger-provider-elasticsearch
 ```
 
 ## Config
