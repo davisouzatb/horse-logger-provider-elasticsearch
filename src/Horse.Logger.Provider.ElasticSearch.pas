@@ -147,7 +147,7 @@ begin
       end;
       LLogStr := Copy(LLogStr,1,LLogStr.Length -1);
       LLogStr := '{'+LLogStr + ',"Subject":"'+LSubject+'"}';
-      FConfig.SendToElasticSearch(LLogStr);
+      FConfig.SendToElasticSearch(LLogStr.Replace('\','/'));
     finally
       //
     end;
