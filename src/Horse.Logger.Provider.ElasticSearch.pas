@@ -12,7 +12,8 @@ uses
 {$ELSE}
   System.Classes,
 {$ENDIF}
-  Horse.Logger, System.Threading;
+  Horse.Logger, 
+  System.Threading;
 type
   THorseLoggerElasticSearchConfig = class
   private
@@ -198,19 +199,43 @@ begin
         FRESTClient: TRESTClient;
         FRESTRequest: TRESTRequest;
         FRESTResponse: TRESTResponse;
+        LFilename: string;
+        LTextFile: TextFile;
     begin
       try
-        FRESTClient := TRESTClient.Create('');
-        FRESTRequest := TRESTRequest.Create(nil);
-        FRESTResponse := TRESTResponse.Create(nil);
-        FRESTRequest.Client := FRESTClient;
-        FRESTRequest.Response := FRESTResponse;
+        try
+          FRESTClient := TRESTClient.Create('');
+          FRESTRequest := TRESTRequest.Create(nil);
+          FRESTResponse := TRESTResponse.Create(nil);
+          FRESTRequest.Client := FRESTClient;
+          FRESTRequest.Response := FRESTResponse;
 
-        FRESTClient.BaseURL := FBaseURL;
-        FRESTRequest.Method := rmPOST;
-        FRESTRequest.AddBody(aValue, TRESTContentType.ctAPPLICATION_JSON);
-        FRESTRequest.Accept := 'application/json';
-        FRESTRequest.Execute;
+          FRESTClient.BaseURL := FBaseURL;
+          FRESTRequest.Method := rmPOST;
+          FRESTRequest.AddBody(aValue, TRESTContentType.ctAPPLICATION_JSON);
+          FRESTRequest.Accept := 'application/json';
+          FRESTRequest.Execute;
+        except on E : exception do
+        begin
+          try
+            LFilename := ExtractFileDir(ParamStr(0));
+            {$IFDEF FPC }
+              LFilename := ConcatPaths([LFilename, 'ElasticSearch_' + FormatDateTime('yyyy-mm-dd', Now()) + '.log']);
+            {$ELSE}
+              LFilename := TPath.Combine(LFilename, 'ElasticSearch_' + FormatDateTime('yyyy-mm-dd', Now()) + '.log');
+            {$ENDIF}
+            AssignFile(LTextFile, LFilename);
+            if (FileExists(LFilename)) then
+              Append(LTextFile)
+            else
+              Rewrite(LTextFile);
+
+              WriteLn(LTextFile, aValue + ' - ' + E.Message);
+          finally
+            CloseFile(LTextFile);
+          end;
+        end;
+        end;
       finally
         FreeAndNil(FRESTClient);
         FreeAndNil(FRESTRequest);

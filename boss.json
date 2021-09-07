@@ -6,6 +6,7 @@
 	"mainsrc": "./src/",
 	"projects": [],
 	"dependencies": {
-		"github.com/hashload/horse-logger": "^2.0.0"
+		"github.com/hashload/horse-logger": "^2.0.0",
+		"https://github.com/viniciussanchez/restrequest4delphi": "^v3.0.8"
 	}
 }
