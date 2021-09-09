@@ -189,61 +189,54 @@ begin
   Result := THorseLoggerElasticSearchConfig.Create;
 end;
 function THorseLoggerElasticSearchConfig.SendToElasticSearch(aValue: string): THorseLoggerElasticSearchConfig;
-
+var
+  FRESTClient: TRESTClient;
+  FRESTRequest: TRESTRequest;
+  FRESTResponse: TRESTResponse;
+  LFilename: string;
+  LTextFile: TextFile;
 begin
   Result := Self;
   try
-    TTask.Run(
-      procedure ()
-      var
-        FRESTClient: TRESTClient;
-        FRESTRequest: TRESTRequest;
-        FRESTResponse: TRESTResponse;
-        LFilename: string;
-        LTextFile: TextFile;
+    FRESTClient := TRESTClient.Create(FBaseURL);
+    FRESTRequest := TRESTRequest.Create(FRESTClient);
+    FRESTResponse := TRESTResponse.Create(FRESTClient);
+    FRESTRequest.Client := FRESTClient;
+    FRESTRequest.Resource := '';
+    FRESTRequest.Response := FRESTResponse;
+    FRESTClient.Params.Clear;
+    FRESTRequest.Params.Clear;
+    FRESTRequest.ClearBody;
+
+    FRESTClient.RaiseExceptionOn500 := true;
+    FRESTClient.BaseURL := FBaseURL;
+    FRESTRequest.Method := rmPOST;
+    FRESTRequest.AddBody(aValue, TRESTContentType.ctAPPLICATION_JSON);
+    FRESTRequest.Accept := 'application/json';
+    FRESTClient.ContentType := 'application/json';
+    FRESTClient.Accept := 'application/json';
+    FRESTClient.UserAgent := 'API_DELPHI';
+    FRESTRequest.ExecuteAsync;
+  except on E : exception do
     begin
       try
-        try
-          FRESTClient := TRESTClient.Create('');
-          FRESTRequest := TRESTRequest.Create(nil);
-          FRESTResponse := TRESTResponse.Create(nil);
-          FRESTRequest.Client := FRESTClient;
-          FRESTRequest.Response := FRESTResponse;
+        LFilename := ExtractFileDir(ParamStr(0));
+        {$IFDEF FPC }
+          LFilename := ConcatPaths([LFilename, 'ElasticSearch_' + FormatDateTime('yyyy-mm-dd', Now()) + '.log']);
+        {$ELSE}
+          LFilename := TPath.Combine(LFilename, 'ElasticSearch_' + FormatDateTime('yyyy-mm-dd', Now()) + '.log');
+        {$ENDIF}
+        AssignFile(LTextFile, LFilename);
+        if (FileExists(LFilename)) then
+          Append(LTextFile)
+        else
+          Rewrite(LTextFile);
 
-          FRESTClient.BaseURL := FBaseURL;
-          FRESTRequest.Method := rmPOST;
-          FRESTRequest.AddBody(aValue, TRESTContentType.ctAPPLICATION_JSON);
-          FRESTRequest.Accept := 'application/json';
-          FRESTRequest.Execute;
-        except on E : exception do
-        begin
-          try
-            LFilename := ExtractFileDir(ParamStr(0));
-            {$IFDEF FPC }
-              LFilename := ConcatPaths([LFilename, 'ElasticSearch_' + FormatDateTime('yyyy-mm-dd', Now()) + '.log']);
-            {$ELSE}
-              LFilename := TPath.Combine(LFilename, 'ElasticSearch_' + FormatDateTime('yyyy-mm-dd', Now()) + '.log');
-            {$ENDIF}
-            AssignFile(LTextFile, LFilename);
-            if (FileExists(LFilename)) then
-              Append(LTextFile)
-            else
-              Rewrite(LTextFile);
-
-              WriteLn(LTextFile, aValue + ' - ' + E.Message);
-          finally
-            CloseFile(LTextFile);
-          end;
-        end;
-        end;
+          WriteLn(LTextFile, aValue + ' - ' + E.Message);
       finally
-        FreeAndNil(FRESTClient);
-        FreeAndNil(FRESTRequest);
-        FreeAndNil(FRESTResponse);
+        CloseFile(LTextFile);
       end;
-    end);
-  except
-  //
+    end;
   end;
 
 end;
