@@ -13,13 +13,12 @@ uses
   System.Classes,
 {$ENDIF}
   Horse.Logger, 
-  System.Threading;
+  System.Threading, System.DateUtils;
 type
   THorseLoggerElasticSearchConfig = class
   private
     { private declarations }
     FLogFormat: string;
-    FSubject : String;
     FBaseURL : String;
     { protected declarations }
   public
@@ -27,10 +26,8 @@ type
     constructor Create;
     destructor Destroy; override;
     function SetLogFormat(ALogFormat: string): THorseLoggerElasticSearchConfig;
-    function SetSubject(ASubject: string): THorseLoggerElasticSearchConfig;
     function SetBaseURL(ABaseURL: string): THorseLoggerElasticSearchConfig;
     function GetLogFormat(out ALogFormat: string): THorseLoggerElasticSearchConfig;
-    function GetSubject(out ASubject: string): THorseLoggerElasticSearchConfig;
     function SendToElasticSearch( aValue: string): THorseLoggerElasticSearchConfig;
     class function New: THorseLoggerElasticSearchConfig;
   end;
@@ -112,7 +109,7 @@ var
   LLog: THorseLoggerLog;
   LParams: TArray<string>;
   LValue: {$IFDEF FPC}THorseLoggerLogItemString{$ELSE}string{$ENDIF};
-  LLogStr, LSubject, LAuxLogStr: string;
+  LLogStr, LAuxLogStr: string;
 begin
   if FConfig = nil then
     FConfig := THorseLoggerElasticSearchConfig.New;
@@ -122,7 +119,6 @@ begin
       Exit;
     try
       FConfig.GetLogFormat(LLogStr);
-      FConfig.GetSubject(LSubject);
       for I := 0 to Pred(LLogCache.Count) do
       begin
         LLog := LLogCache.Items[I] as THorseLoggerLog;
@@ -142,12 +138,17 @@ begin
             LLogStr := LLogStr.Replace('${' + LParams[Z] + '},', LValue.AsString);
 {$ELSE}
           if LLog.TryGetValue<string>(LParams[Z], LValue) then
-            LLogStr := LLogStr.Replace('${' + LParams[Z] + '}', LValue);
+          begin
+            if UpperCase(LParams[Z]) = 'TIME' then
+              LLogStr := LLogStr.Replace('${' + LParams[Z] + '}', DateToISO8601(StrToDateTimeDef(LValue,now),False))
+            else
+              LLogStr := LLogStr.Replace('${' + LParams[Z] + '}', LValue);
+          end;
 {$ENDIF}
         end;
       end;
       LLogStr := Copy(LLogStr,1,LLogStr.Length -1);
-      LLogStr := '{'+LLogStr + ',"Subject":"'+LSubject+'"}';
+      LLogStr := '{'+LLogStr+'}';
       FConfig.SendToElasticSearch(LLogStr.Replace('\','/'));
     finally
       //
@@ -165,7 +166,6 @@ end;
 constructor THorseLoggerElasticSearchConfig.Create;
 begin
   FLogFormat := DEFAULT_HORSE_LOG_FORMAT;
-  FSubject := '';
   FBaseURL := 'http://localhost:9200/apidelphi/_doc';
 end;
 destructor THorseLoggerElasticSearchConfig.Destroy;
@@ -177,11 +177,6 @@ function THorseLoggerElasticSearchConfig.GetLogFormat(out ALogFormat: string): T
 begin
   Result := Self;
   ALogFormat := FLogFormat;
-end;
-function THorseLoggerElasticSearchConfig.GetSubject(out ASubject: string): THorseLoggerElasticSearchConfig;
-begin
-  Result := Self;
-  ASubject := FSubject;
 end;
 
 class function THorseLoggerElasticSearchConfig.New: THorseLoggerElasticSearchConfig;
@@ -251,11 +246,6 @@ function THorseLoggerElasticSearchConfig.SetLogFormat(ALogFormat: string): THors
 begin
   Result := Self;
   FLogFormat := ALogFormat;
-end;
-function THorseLoggerElasticSearchConfig.SetSubject(ASubject: string): THorseLoggerElasticSearchConfig;
-begin
-  Result := Self;
-  FSubject := ASubject;
 end;
 
 end.
