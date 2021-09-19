@@ -13,7 +13,8 @@ uses
   System.Classes,
 {$ENDIF}
   Horse.Logger, 
-  System.Threading, System.DateUtils;
+  System.DateUtils,
+  System.StrUtils;
 type
   THorseLoggerElasticSearchConfig = class
   private
@@ -110,6 +111,7 @@ var
   LParams: TArray<string>;
   LValue: {$IFDEF FPC}THorseLoggerLogItemString{$ELSE}string{$ENDIF};
   LLogStr, LAuxLogStr: string;
+  LElasticBulk : TStringList;
 begin
   if FConfig = nil then
     FConfig := THorseLoggerElasticSearchConfig.New;
@@ -117,10 +119,14 @@ begin
   try
     if LLogCache.Count = 0 then
       Exit;
+    LElasticBulk := TStringList.Create;
     try
-      FConfig.GetLogFormat(LLogStr);
       for I := 0 to Pred(LLogCache.Count) do
       begin
+        LElasticBulk.Add('{ "index" : {"_index":"apidelphi"}');
+        LLogStr := '';
+        LAuxLogStr := '';
+        FConfig.GetLogFormat(LLogStr);
         LLog := LLogCache.Items[I] as THorseLoggerLog;
         LParams := THorseLoggerUtils.GetFormatParams(FConfig.FLogFormat);
         for Z := Low(LParams) to High(LParams) do
@@ -133,10 +139,10 @@ begin
         LLogStr := LAuxLogStr;
         for Z := Low(LParams) to High(LParams) do
         begin
-{$IFDEF FPC}
+        {$IFDEF FPC}
           if LLog.Find(LParams[Z], LValue) then
             LLogStr := LLogStr.Replace('${' + LParams[Z] + '},', LValue.AsString);
-{$ELSE}
+        {$ELSE}
           if LLog.TryGetValue<string>(LParams[Z], LValue) then
           begin
             if UpperCase(LParams[Z]) = 'TIME' then
@@ -144,14 +150,15 @@ begin
             else
               LLogStr := LLogStr.Replace('${' + LParams[Z] + '}', LValue);
           end;
-{$ENDIF}
+        {$ENDIF}
         end;
+        LLogStr := Copy(LLogStr,1,LLogStr.Length -1);
+        LLogStr := '{'+LLogStr.Replace('\','/')+'}';
+        LElasticBulk.Add(LLogStr);
       end;
-      LLogStr := Copy(LLogStr,1,LLogStr.Length -1);
-      LLogStr := '{'+LLogStr+'}';
-      FConfig.SendToElasticSearch(LLogStr.Replace('\','/'));
+      FConfig.SendToElasticSearch(LElasticBulk.GetText);
     finally
-      //
+      LElasticBulk.Free;
     end;
   finally
     LLogCache.Free;
@@ -166,7 +173,7 @@ end;
 constructor THorseLoggerElasticSearchConfig.Create;
 begin
   FLogFormat := DEFAULT_HORSE_LOG_FORMAT;
-  FBaseURL := 'http://localhost:9200/apidelphi/_doc';
+  FBaseURL := 'http://localhost:9200/';
 end;
 destructor THorseLoggerElasticSearchConfig.Destroy;
 begin
@@ -195,23 +202,17 @@ begin
   try
     FRESTClient := TRESTClient.Create(FBaseURL);
     FRESTRequest := TRESTRequest.Create(FRESTClient);
-    FRESTResponse := TRESTResponse.Create(FRESTClient);
-    FRESTRequest.Client := FRESTClient;
-    FRESTRequest.Resource := '';
-    FRESTRequest.Response := FRESTResponse;
-    FRESTClient.Params.Clear;
-    FRESTRequest.Params.Clear;
-    FRESTRequest.ClearBody;
-
-    FRESTClient.RaiseExceptionOn500 := true;
-    FRESTClient.BaseURL := FBaseURL;
-    FRESTRequest.Method := rmPOST;
-    FRESTRequest.AddBody(aValue, TRESTContentType.ctAPPLICATION_JSON);
-    FRESTRequest.Accept := 'application/json';
-    FRESTClient.ContentType := 'application/json';
-    FRESTClient.Accept := 'application/json';
-    FRESTClient.UserAgent := 'API_DELPHI';
-    FRESTRequest.ExecuteAsync;
+//    FRESTRequest.Client := FRESTClient;
+    try
+      FRESTClient.BaseURL := FBaseURL + IfThen(FBaseURL.EndsWith('/'),'_bulk','/_bulk');
+      FRESTRequest.Method := rmPOST;
+      FRESTRequest.AddBody(aValue, TRESTContentType.ctAPPLICATION_JSON);
+      FRESTClient.UserAgent := 'Horse Logger ElasticSearch Provider';
+      FRESTRequest.Execute;
+    finally
+      FRESTRequest.Free;
+      FRESTClient.Free;
+    end;
   except on E : exception do
     begin
       try
