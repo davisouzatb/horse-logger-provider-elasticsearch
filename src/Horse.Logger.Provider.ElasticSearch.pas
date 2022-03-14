@@ -156,7 +156,7 @@ begin
         LLogStr := '{'+LLogStr.Replace('\','/')+'}';
         LElasticBulk.Add(LLogStr);
       end;
-      FConfig.SendToElasticSearch(LElasticBulk.Text);
+      FConfig.SendToElasticSearch(LElasticBulk.GetText);
     finally
       LElasticBulk.Free;
     end;
