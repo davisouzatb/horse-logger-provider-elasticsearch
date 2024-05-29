@@ -12,6 +12,7 @@ uses
 {$ELSE}
   System.Classes,
 {$ENDIF}
+  REST.Authenticator.Basic,
   Horse.Logger, 
   System.DateUtils,
   System.StrUtils;
@@ -123,12 +124,17 @@ begin
     try
       for I := 0 to Pred(LLogCache.Count) do
       begin
-        LElasticBulk.Add('{ "index" : {"_index":"apidelphi"}');
         LLogStr := '';
         LAuxLogStr := '';
         FConfig.GetLogFormat(LLogStr);
         LLog := LLogCache.Items[I] as THorseLoggerLog;
         LParams := THorseLoggerUtils.GetFormatParams(FConfig.FLogFormat);
+        if (LLog.TryGetValue<string>('request_path_info', LValue)) and
+           (LValue = '/hslog')
+        then
+          Continue;
+
+        LElasticBulk.Add('{ "index" : {"_index":"apidelphi"}');
         for Z := Low(LParams) to High(LParams) do
         begin
           if LLogStr.Contains('"${' + LParams[Z] + '}"') then
@@ -156,7 +162,8 @@ begin
         LLogStr := '{'+LLogStr.Replace('\','/')+'}';
         LElasticBulk.Add(LLogStr);
       end;
-      FConfig.SendToElasticSearch(LElasticBulk.Text);
+      if not LElasticBulk.Text.IsEmpty then
+        FConfig.SendToElasticSearch(LElasticBulk.Text);
     finally
       LElasticBulk.Free;
     end;
@@ -197,19 +204,23 @@ var
   FRESTResponse: TRESTResponse;
   LFilename: string;
   LTextFile: TextFile;
+  LOAuth2 : THTTPBasicAuthenticator;
 begin
   Result := Self;
   try
     FRESTClient := TRESTClient.Create(FBaseURL);
     FRESTRequest := TRESTRequest.Create(FRESTClient);
-//    FRESTRequest.Client := FRESTClient;
+    FRESTRequest.Client := FRESTClient;
     try
       FRESTClient.BaseURL := FBaseURL + IfThen(FBaseURL.EndsWith('/'),'_bulk','/_bulk');
+      LOAuth2 := THTTPBasicAuthenticator.Create('elastic','z-nRbwKESYVtnE8PYeGL');
+      FRESTClient.Authenticator := LOAuth2;
       FRESTRequest.Method := rmPOST;
       FRESTRequest.AddBody(aValue, TRESTContentType.ctAPPLICATION_JSON);
       FRESTClient.UserAgent := 'Horse Logger ElasticSearch Provider';
       FRESTRequest.Execute;
     finally
+      LOAuth2.Free;
       FRESTRequest.Free;
       FRESTClient.Free;
     end;
